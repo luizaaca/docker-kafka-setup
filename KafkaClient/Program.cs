@@ -1,8 +1,5 @@
-﻿using KafkaNet;
-using KafkaNet.Model;
+﻿using Confluent.Kafka;
 using System;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace KafkaClient
 {
@@ -10,29 +7,40 @@ namespace KafkaClient
     {
         static void Main(string[] args)
         {
-            string topic = "TestTopic-1";
-            Uri uri = new Uri("http://192.168.99.100:9092");
-            var options = new KafkaOptions(uri);
-            var router = new BrokerRouter(options);
-            var consumer1 = new Consumer(new ConsumerOptions(topic, router));
-            Task.Run(() =>
+            var config = new ConsumerConfig
             {
-                foreach (var message in consumer1.Consume())
+                BootstrapServers = "192.168.99.100:9092",
+                ClientId = "Consumer",
+                AutoOffsetReset = AutoOffsetReset.Latest,
+                GroupId = "TestConfluent",
+                //AutoCommitIntervalMs = 5000
+                //EnableAutoOffsetStore = false,
+                //EnableAutoCommit = true,
+                EnableAutoCommit = false
+            };
+
+            using (var consumer = new ConsumerBuilder<Ignore, string>(config).Build())
+            {
+                consumer.Subscribe("Topic");
+                //count to check if consumer restarts from last read message in the broker
+                //run again this consumer after 50 messages
+                var count = 0;
+                while (count < 50)
                 {
-                    Console.WriteLine(Encoding.UTF8.GetString(message.Value));
-                    //Console.WriteLine("Response: P{0},O{1} : {2}",
-                    //    message.Meta.PartitionId,
-                    //    message.Meta.Offset,
-                    //    message.Value);
+                    var consumeResult = consumer.Consume();
+
+                    if (consumeResult.Message == null) break;
+
+                    Console.WriteLine(consumeResult.Value);
+
+                    //consumer.StoreOffset(consumeResult);
+                    consumer.Commit(consumeResult);
+                    count++;
                 }
-            });
-            topic = "TestTopic-2";
-            var consumer2 = new Consumer(new ConsumerOptions(topic, router));
-            Task.Run(() =>
-            {
-                foreach (var message in consumer2.Consume())
-                    Console.WriteLine(Encoding.UTF8.GetString(message.Value));
-            });
+
+                consumer.Close();
+            }
+
             Console.ReadLine();
         }
     }

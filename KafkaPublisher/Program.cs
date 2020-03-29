@@ -1,8 +1,5 @@
-﻿using KafkaNet;
-using KafkaNet.Model;
-using KafkaNet.Protocol;
+﻿using Confluent.Kafka;
 using System;
-using System.Collections.Generic;
 
 namespace KafkaPublisher
 {
@@ -10,28 +7,25 @@ namespace KafkaPublisher
     {
         static void Main(string[] args)
         {
-            Uri uri = new Uri("http://192.168.99.100:9092");
-            var options = new KafkaOptions(uri);
-            string topic = "TestTopic-1";
-            var router = new BrokerRouter(options);
-            var client = new Producer(router);
-
-            for (int i = 0; i < 10; i++)
+            var config = new ProducerConfig
             {
-                string payload = $"Welcome to Kafka {i+1}! - {topic}";
-                Message msg = new Message(payload);
-                client.SendMessageAsync(topic, new List<Message> { msg }).Wait();
-            }
+                BootstrapServers = "192.168.99.100:9092",
+                ClientId = "Producer",
+                Acks = Acks.All
+            };
 
-            topic = "TestTopic-2";
-            router = new BrokerRouter(options);
-            client = new Producer(router);
-
-            for (int i = 0; i < 10; i++)
+            using (var producer = new ProducerBuilder<Null, string>(config).Build())
             {
-                string payload = $"Welcome to Kafka {i + 1} - {topic}!";
-                Message msg = new Message(payload);
-                client.SendMessageAsync(topic, new List<Message> { msg }).Wait();
+                for (int i = 0; i < 100; i++)
+                {
+                    producer
+                        .ProduceAsync("Topic", new Message<Null, string> { Value = $"Test Confluent {i}" })
+                        .ContinueWith((task) =>
+                         {
+                             Console.WriteLine("Status: {0}, Message: {1}, Offset: {2}", task.Result.Status, task.Result.Value, task.Result.Offset.Value);
+                         })
+                        .Wait();
+                }
             }
 
             Console.ReadLine();
